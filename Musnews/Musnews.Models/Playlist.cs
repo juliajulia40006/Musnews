@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace Musnews.Models
 {
-    internal class Playlist
+    public class Playlist
     {
         public int Id { get; set; }
         public string Name { get; set; } = string.Empty;
