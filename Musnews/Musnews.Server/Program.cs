@@ -3,6 +3,9 @@ using SQLitePCL;
 using Microsoft.AspNetCore.SpaServices.StaticFiles;
 using Musnews.Data;
 
+
+SQLitePCL.Batteries.Init();
+
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
@@ -35,6 +38,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseDefaultFiles();
 app.UseStaticFiles();
 app.MapControllers();
 
