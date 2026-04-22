@@ -1,25 +1,759 @@
 ﻿<!DOCTYPE html>
-<html>
+<html lang="ru">
 <head>
-    <title>Musnews Stream</title>
-    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>MUSNEWS</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+        }
+
+        body {
+            background: #f4f7fe;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* классическая трехколоночная сетка: левая синяя панель + центр + правая панель */
+        .app-grid {
+            display: flex;
+            height: 100vh;
+            width: 100%;
+        }
+
+        /* левая панель */
+        .left-sidebar {
+            width: 280px;
+            background: linear-gradient(180deg, #0b2b5c 0%, #031f42 100%);
+            color: #f0f3fc;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 4px 0 24px rgba(0, 0, 0, 0.12);
+            overflow-y: auto;
+            flex-shrink: 0;
+            backdrop-filter: blur(2px);
+        }
+
+        .logo-block {
+            padding: 32px 24px 20px 24px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+            margin-bottom: 28px;
+        }
+
+            .logo-block h1 {
+                font-size: 2rem;
+                font-weight: 800;
+                letter-spacing: -0.5px;
+                background: linear-gradient(130deg, #ffffff, #c8ddff);
+                background-clip: text;
+                -webkit-background-clip: text;
+                color: transparent;
+            }
+
+            .logo-block p {
+                font-size: 0.7rem;
+                opacity: 0.7;
+                margin-top: 6px;
+                letter-spacing: 0.3px;
+            }
+
+        .nav-menu {
+            padding: 0 20px 20px 20px;
+        }
+
+        .section-title {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            font-weight: 700;
+            letter-spacing: 1.2px;
+            color: #7e9ed5;
+            margin: 20px 0 12px 0;
+        }
+
+        .playlist-items {
+            list-style: none;
+        }
+
+            .playlist-items li {
+                padding: 8px 12px;
+                margin: 4px 0;
+                border-radius: 14px;
+                font-weight: 500;
+                font-size: 0.9rem;
+                background: rgba(255, 255, 255, 0.05);
+                transition: 0.2s;
+                cursor: default;
+            }
+
+                .playlist-items li:hover {
+                    background: #1f5090;
+                    transform: translateX(5px);
+                }
+
+        .album-row {
+            background: rgba(255, 255, 255, 0.06);
+            border-radius: 14px;
+            padding: 10px 14px;
+            margin: 8px 0;
+            font-size: 0.85rem;
+            font-weight: 500;
+            border-left: 3px solid #5f9eff;
+        }
+
+        /* центральная */
+        .main-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: #ffffff;
+            overflow: hidden;
+            box-shadow: 0 0 0 1px rgba(0,0,0,0.02);
+        }
+
+        /* верхняя синяя полоска (как на фото) */
+        .top-blue-header {
+            background: #1f5090;
+            background: linear-gradient(95deg, #1960b0, #12417c);
+            padding: 16px 28px;
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            flex-wrap: wrap;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+        }
+
+        .music-center-title {
+            font-size: 1.45rem;
+            font-weight: 700;
+            color: white;
+            letter-spacing: -0.3px;
+        }
+
+        .hot-badge {
+            background: rgba(255, 215, 100, 0.2);
+            backdrop-filter: blur(4px);
+            padding: 5px 14px;
+            border-radius: 40px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: #ffeaaf;
+        }
+
+        /* контейнер со списком треков */
+        .tracks-wrapper {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px 28px 28px 28px;
+            scroll-behavior: smooth;
+        }
+
+        .track-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .track-row {
+            background: white;
+            border-radius: 20px;
+            padding: 12px 18px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+            border: 1px solid #eef2f9;
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+
+            .track-row:hover {
+                background: #fafdff;
+                border-color: #b9d0ff;
+                transform: scale(1.01);
+                box-shadow: 0 10px 20px -8px rgba(0, 0, 0, 0.08);
+            }
+
+        .track-info-group {
+            display: flex;
+            align-items: center;
+            gap: 18px;
+            flex: 3;
+        }
+
+        .track-icon-circle {
+            width: 48px;
+            height: 48px;
+            background: #eef2fc;
+            border-radius: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            color: #1f5090;
+        }
+
+        .track-name-artist {
+            min-width: 160px;
+        }
+
+        .track-name {
+            font-weight: 700;
+            font-size: 1rem;
+            color: #141c2c;
+        }
+
+        .track-artist {
+            font-size: 0.75rem;
+            color: #6a7f9f;
+            margin-top: 4px;
+        }
+
+        .track-album-name {
+            flex: 1.6;
+            font-size: 0.8rem;
+            color: #4f6e96;
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .track-duration-badge {
+            font-family: monospace;
+            background: #eff3fc;
+            padding: 4px 12px;
+            border-radius: 50px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: #1f5090;
+        }
+
+        /* нижний плеер (появляется только при активном треке) */
+        .now-playing-footer {
+            background: #0c1d38;
+            background: linear-gradient(95deg, #112b4e, #0a1d38);
+            border-top: 1px solid #2c5a92;
+            padding: 10px 24px;
+            display: none;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 12px;
+            color: white;
+            transition: 0.2s;
+        }
+
+            .now-playing-footer.active {
+                display: flex;
+            }
+
+        .track-mini {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            min-width: 200px;
+        }
+
+        .mini-cover-round {
+            width: 44px;
+            height: 44px;
+            background: #2f5282;
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.3rem;
+        }
+
+        .mini-track-title {
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .mini-track-artist {
+            font-size: 0.7rem;
+            opacity: 0.75;
+        }
+
+        .player-buttons {
+            display: flex;
+            gap: 14px;
+            align-items: center;
+        }
+
+        .ctrl-icon {
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            width: 38px;
+            height: 38px;
+            border-radius: 40px;
+            color: white;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: 0.15s;
+        }
+
+            .ctrl-icon:hover {
+                background: #3670b0;
+            }
+
+        .play-large {
+            background: #3080ef;
+            width: 46px;
+            height: 46px;
+            font-size: 1.2rem;
+        }
+
+        .volume-range {
+            width: 90px;
+            background: #2f4468;
+            height: 3px;
+            border-radius: 4px;
+        }
+
+        .timecode {
+            font-family: monospace;
+            font-size: 0.7rem;
+            background: #021c34;
+            padding: 4px 12px;
+            border-radius: 60px;
+        }
+
+        /* ========= ПРАВАЯ ПАНЕЛЬ (статьи) ========= */
+        .right-news {
+            width: 310px;
+            background: #fefeff;
+            border-left: 1px solid #e2eaf5;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+            flex-shrink: 0;
+            box-shadow: -2px 0 12px rgba(0, 0, 0, 0.02);
+        }
+
+        .news-header {
+            padding: 26px 20px 12px 24px;
+            border-bottom: 2px solid #eef2fc;
+        }
+
+            .news-header h3 {
+                font-size: 1.25rem;
+                font-weight: 700;
+                color: #0a2b5e;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+
+                .news-header h3::before {
+                    content: "📰";
+                }
+
+        .news-list {
+            padding: 18px 20px 30px 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .news-card {
+            background: #ffffff;
+            border-radius: 24px;
+            padding: 14px 18px;
+            transition: 0.2s;
+            border: 1px solid #eef2fc;
+            cursor: pointer;
+        }
+
+            .news-card:hover {
+                border-color: #b9d0ff;
+                transform: translateY(-3px);
+                box-shadow: 0 12px 18px -12px rgba(0, 0, 0, 0.08);
+            }
+
+        .news-title {
+            font-weight: 800;
+            font-size: 0.95rem;
+            color: #0b2b5c;
+            margin-bottom: 8px;
+        }
+
+        .news-desc {
+            font-size: 0.73rem;
+            color: #5f7292;
+            line-height: 1.35;
+        }
+
+        .read-link {
+            font-size: 0.7rem;
+            font-weight: 600;
+            color: #1f5090;
+            margin-top: 10px;
+            display: inline-block;
+        }
+
+        /* скроллы */
+        .left-sidebar::-webkit-scrollbar, .tracks-wrapper::-webkit-scrollbar, .right-news::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        @media (max-width: 950px) {
+            .left-sidebar {
+                width: 250px;
+            }
+
+            .right-news {
+                width: 280px;
+            }
+
+            .track-album-name {
+                display: none;
+            }
+        }
+    </style>
 </head>
 <body>
-    <h1>🎵 Music Stream</h1>
-    <div id="tracks"></div>
+    <div class="app-grid">
+
+        <!-- Левая синяя панель -->
+        <aside class="left-sidebar">
+            <div class="logo-block">
+                <h1>MUSNEWS</h1>
+                <p>музыкальные новости</p>
+            </div>
+            <div class="nav-menu">
+                <div class="section-title">ПЛЕЙЛИСТЫ</div>
+                <ul class="playlist-items">
+                    <li>📀 Плейлист 1 - Хиты недели</li>
+                    <li>🎸 Плейлист 2 - Альтернатива</li>
+                    <li>⚡ Плейлист 3 - Электроника</li>
+                    <li>🔥 Плейлист 4 - Новинки 2025</li>
+                </ul>
+                <div class="section-title" style="margin-top: 24px;">АЛЬБОМЫ</div>
+                <div class="album-row">9MM PB - MOVEMENT</div>
+                <div class="album-row">THE HATTERS - ПОЛНАЯ ШЛЯПА</div>
+                <div class="album-row">LUMEN - Горизонт</div>
+                <div class="album-row">ZOLOTO - Ритм улиц</div>
+            </div>
+        </aside>
+
+        <!-- центральная панель -->
+        <main class="main-area">
+            <div class="top-blue-header">
+                <span class="music-center-title">🎶 Музыкальный центр</span>
+                <span class="hot-badge">🔥 горячие релизы</span>
+            </div>
+
+            <div class="tracks-wrapper">
+                <div class="track-list" id="trackListRoot">
+                    <!-- сюда динамически будет загружен список песен -->
+                </div>
+            </div>
+
+            <!-- Нижний плеер (появляется только при старте трека) -->
+            <div class="now-playing-footer" id="globalPlayerFooter">
+                <div class="track-mini">
+                    <div class="mini-cover-round" id="miniCoverDynamic">🎵</div>
+                    <div>
+                        <div class="mini-track-title" id="footerTrackTitle">Не выбрано</div>
+                        <div class="mini-track-artist" id="footerTrackArtist">—</div>
+                    </div>
+                </div>
+                <div class="player-buttons">
+                    <button class="ctrl-icon" id="prevButton">⏮</button>
+                    <button class="ctrl-icon play-large" id="playPauseButton">▶</button>
+                    <button class="ctrl-icon" id="nextButton">⏭</button>
+                    <input type="range" id="volumeSlider" class="volume-range" min="0" max="1" step="0.01" value="0.65">
+                    <span class="timecode" id="timeCodeLabel">0:00 / 0:00</span>
+                </div>
+            </div>
+        </main>
+
+        <!-- Правая панель -->
+        <aside class="right-news">
+            <div class="news-header">
+                <h3>Статьи и новости</h3>
+            </div>
+            <div class="news-list">
+                <div class="news-card" onclick="alert('Открыть: 9MM PB «MOVEMENT» — первый за 2 года')">
+                    <div class="news-title">🎤 9MM PB «MOVEMENT» — первый за 2 года</div>
+                    <div class="news-desc">Новый альбом уже лидирует в чартах, трек «Movement Flow» стал гимном лета.</div>
+                    <div class="read-link">читать →</div>
+                </div>
+                <div class="news-card" onclick="alert('Открыть: THE HATTERS: «Полная шляпа — это манифест»')">
+                    <div class="news-title">🎩 THE HATTERS: «Полная шляпа — это манифест»</div>
+                    <div class="news-desc">Группа рассказывает о записи пластинки и неожиданных коллаборациях.</div>
+                    <div class="read-link">читать →</div>
+                </div>
+                <div class="news-card" onclick="alert('Фестиваль «Сила звука» объявил хедлайнеров')">
+                    <div class="news-title">🎸 Фестиваль «Сила звука» объявил хедлайнеров</div>
+                    <div class="news-desc">На сцену выйдут легенды и новые герои инди-сцены.</div>
+                    <div class="read-link">читать →</div>
+                </div>
+                <div class="news-card" onclick="alert('Топ-10 треков июня: плейлист редакции')">
+                    <div class="news-title">📈 Топ-10 треков июня: плейлист редакции</div>
+                    <div class="news-desc">Самые яркие новинки и главные треки месяца в одном месте.</div>
+                    <div class="read-link">читать →</div>
+                </div>
+                <div class="news-card" onclick="alert('Премьера клипа ZOLOTO «Ритм улиц»')">
+                    <div class="news-title">📺 ZOLOTO выпустили клип «Ритм улиц»</div>
+                    <div class="news-desc">Яркая работа режиссера Ивана Петрова набирает миллионы просмотров.</div>
+                    <div class="read-link">читать →</div>
+                </div>
+            </div>
+        </aside>
+    </div>
+
+    <audio id="coreAudioPlayer" preload="metadata"></audio>
 
     <script>
-        async function loadTracks() {
-            const res = await axios.get('/api/tracks');
-            const tracksDiv = document.getElementById('tracks');
-            tracksDiv.innerHTML = res.data.map(t => `
-                <div>
-                    <strong>${t.title}</strong> — ${t.artist}
-                    <audio controls src="${t.audioUrl}"></audio>
-                </div>
-            `).join('');
+        // база треков
+        const tracks = [
+            { id: 1, title: , artist: , album: , durationSec: 198, icon: , audioUrl:  },
+            { id: 2, title: , artist: , album: , durationSec: 227, icon: , audioUrl:  },
+            { id: 3, title: , artist: , album: , durationSec: 182, icon: , audioUrl:  },
+            { id: 4, title: , artist: , album: , durationSec: 211, icon: , audioUrl:  },
+            { id: 5, title: , artist: , album: , durationSec: 205, icon: , audioUrl:  },
+            { id: 6, title: , artist: , album: , durationSec: 193, icon: , audioUrl:  },
+            { id: 7, title: , artist: , album: , durationSec: 176, icon: , audioUrl:  },
+            { id: 8, title: , artist: , album: , durationSec: 210, icon: , audioUrl:  }
+        ];
+
+        // DOM элементы
+        const trackContainer = document.getElementById("trackListRoot");
+        const audioElem = document.getElementById("coreAudioPlayer");
+        const footer = document.getElementById("globalPlayerFooter");
+        const footerTitle = document.getElementById("footerTrackTitle");
+        const footerArtist = document.getElementById("footerTrackArtist");
+        const miniCover = document.getElementById("miniCoverDynamic");
+        const playPauseBtn = document.getElementById("playPauseButton");
+        const prevBtn = document.getElementById("prevButton");
+        const nextBtn = document.getElementById("nextButton");
+        const volumeSlider = document.getElementById("volumeSlider");
+        const timeLabel = document.getElementById("timeCodeLabel");
+
+        let currentIdx = 0;
+        let isPlaying = false;
+
+        // helper: формат времени
+        function formatTime(seconds) {
+            if (isNaN(seconds) || seconds === Infinity) return "0:00";
+            const mins = Math.floor(seconds / 60);
+            const secs = Math.floor(seconds % 60);
+            return `${mins}:${secs.toString().padStart(2, '0')}`;
         }
-        loadTracks();
+
+        // обновление нижнюю панель и выделение активного трека в списке
+        function updateFooterAndActiveTrack() {
+            const track = tracks[currentIdx];
+            if (track) {
+                footerTitle.innerText = track.title;
+                footerArtist.innerText = track.artist;
+                miniCover.innerText = track.icon || "🎵";
+                // подсветка активного трека
+                document.querySelectorAll('.track-row').forEach(row => {
+                    const rowId = parseInt(row.getAttribute('data-id'));
+                    if (rowId === track.id) {
+                        row.style.background = "#eef4ff";
+                        row.style.borderLeft = "4px solid #1f5090";
+                    } else {
+                        row.style.background = "white";
+                        row.style.borderLeft = "1px solid #eef2f9";
+                    }
+                });
+            } else {
+                footerTitle.innerText = "Не выбрано";
+                footerArtist.innerText = "—";
+                miniCover.innerText = "🎵";
+            }
+        }
+
+        function loadTrack(index, autoplay = false) {
+            if (index < 0) index = 0;
+            if (index >= tracks.length) index = 0;
+            currentIdx = index;
+            const track = tracks[currentIdx];
+            if (!track) return;
+            audioElem.src = track.audioUrl;
+            audioElem.load();
+            updateFooterAndActiveTrack();
+            // отображение времени после загрузки метаданных
+            audioElem.addEventListener('loadedmetadata', () => {
+                if (!isNaN(audioElem.duration)) {
+                    timeLabel.innerText = `0:00 / ${formatTime(audioElem.duration)}`;
+                } else {
+                    timeLabel.innerText = `0:00 / ${formatTime(track.durationSec)}`;
+                }
+            }, { once: true });
+            timeLabel.innerText = `0:00 / ${formatTime(track.durationSec)}`;
+
+            if (autoplay) {
+                audioElem.play().then(() => {
+                    isPlaying = true;
+                    playPauseBtn.innerHTML = "⏸";
+                    footer.classList.add("active");
+                }).catch(e => {
+                    console.warn("autoplay blocked", e);
+                    isPlaying = false;
+                    playPauseBtn.innerHTML = "▶";
+                    footer.classList.add("active");
+                });
+            } else {
+                audioElem.pause();
+                isPlaying = false;
+                playPauseBtn.innerHTML = "▶";
+            }
+        }
+
+        function startPlayback() {
+            if (!tracks.length) return;
+            if (!audioElem.src || audioElem.ended || audioElem.readyState === 0) {
+                loadTrack(currentIdx, true);
+                return;
+            }
+            audioElem.play().then(() => {
+                isPlaying = true;
+                playPauseBtn.innerHTML = "⏸";
+                footer.classList.add("active");
+            }).catch(e => console.warn(e));
+        }
+
+        function pausePlayback() {
+            audioElem.pause();
+            isPlaying = false;
+            playPauseBtn.innerHTML = "▶";
+        }
+
+        function togglePlayPause() {
+            if (!tracks.length) return;
+            if (!audioElem.src || audioElem.ended) {
+                loadTrack(currentIdx, true);
+                footer.classList.add("active");
+                return;
+            }
+            if (isPlaying) {
+                pausePlayback();
+            } else {
+                startPlayback();
+            }
+            footer.classList.add("active");
+        }
+
+        function nextTrack() {
+            if (!tracks.length) return;
+            let newIdx = currentIdx + 1;
+            if (newIdx >= tracks.length) newIdx = 0;
+            currentIdx = newIdx;
+            loadTrack(currentIdx, isPlaying);
+            if (isPlaying) {
+                audioElem.play().catch(e => console.warn(e));
+                playPauseBtn.innerHTML = "⏸";
+            } else {
+                playPauseBtn.innerHTML = "▶";
+            }
+            footer.classList.add("active");
+        }
+
+        function prevTrack() {
+            if (!tracks.length) return;
+            let newIdx = currentIdx - 1;
+            if (newIdx < 0) newIdx = tracks.length - 1;
+            currentIdx = newIdx;
+            loadTrack(currentIdx, isPlaying);
+            if (isPlaying) {
+                audioElem.play().catch(e => console.warn(e));
+                playPauseBtn.innerHTML = "⏸";
+            } else {
+                playPauseBtn.innerHTML = "▶";
+            }
+            footer.classList.add("active");
+        }
+
+        function setVolume() {
+            audioElem.volume = volumeSlider.value;
+        }
+
+        function updateTimeDisplay() {
+            if (audioElem && !isNaN(audioElem.duration) && audioElem.duration !== Infinity && audioElem.duration > 0) {
+                const cur = formatTime(audioElem.currentTime);
+                const dur = formatTime(audioElem.duration);
+                timeLabel.innerText = `${cur} / ${dur}`;
+            } else {
+                const track = tracks[currentIdx];
+                if (track && audioElem.currentTime) {
+                    timeLabel.innerText = `${formatTime(audioElem.currentTime)} / ${formatTime(track.durationSec)}`;
+                } else if (track) {
+                    timeLabel.innerText = `0:00 / ${formatTime(track.durationSec)}`;
+                }
+            }
+        }
+
+        function onTrackEnded() {
+            nextTrack();
+        }
+
+        // отрисовка списка треков в центре
+        function renderTracks() {
+            trackContainer.innerHTML = "";
+            tracks.forEach(track => {
+                const row = document.createElement("div");
+                row.className = "track-row";
+                row.setAttribute("data-id", track.id);
+                row.innerHTML = `
+                    <div class="track-info-group">
+                        <div class="track-icon-circle">${track.icon || "🎵"}</div>
+                        <div class="track-name-artist">
+                            <div class="track-name">${escapeHtml(track.title)}</div>
+                            <div class="track-artist">${escapeHtml(track.artist)}</div>
+                        </div>
+                    </div>
+                    <div class="track-album-name">${escapeHtml(track.album)}</div>
+                    <div class="track-duration-badge">${formatTime(track.durationSec)}</div>
+                `;
+                row.addEventListener("click", () => {
+                    const idx = tracks.findIndex(t => t.id === track.id);
+                    if (idx !== -1) {
+                        currentIdx = idx;
+                        loadTrack(currentIdx, true);
+                        footer.classList.add("active");
+                    }
+                });
+                trackContainer.appendChild(row);
+            });
+        }
+
+        function escapeHtml(str) {
+            return str.replace(/[&<>]/g, function (m) {
+                if (m === '&') return '&amp;';
+                if (m === '<') return '&lt;';
+                if (m === '>') return '&gt;';
+                return m;
+            });
+        }
+
+        function init() {
+            renderTracks();
+            if (tracks.length) {
+                currentIdx = 0;
+                loadTrack(0, false);
+                footer.classList.remove("active");   // плеер скрыт до первого запуска
+                isPlaying = false;
+                playPauseBtn.innerHTML = "▶";
+            }
+            playPauseBtn.addEventListener("click", togglePlayPause);
+            prevBtn.addEventListener("click", prevTrack);
+            nextBtn.addEventListener("click", nextTrack);
+            volumeSlider.addEventListener("input", setVolume);
+            audioElem.addEventListener("timeupdate", updateTimeDisplay);
+            audioElem.addEventListener("ended", onTrackEnded);
+            audioElem.volume = volumeSlider.value;
+        }
+
+        init();
     </script>
 </body>
 </html>
