@@ -12,5 +12,7 @@ namespace Musnews.Data
         Task<IEnumerable<Track>> GetAllAsync();
         Task<Track?> GetByIdAsync(int id);
         Task AddAsync(Track track);
+        Task UpdateAsync(Track track);
+        Task DeleteAsync(int id);
     }
 }
