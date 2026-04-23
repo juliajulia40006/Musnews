@@ -18,14 +18,12 @@
             overflow: hidden;
         }
 
-        /* классическая трехколоночная сетка: левая синяя панель + центр + правая панель */
         .app-grid {
             display: flex;
             height: 100vh;
             width: 100%;
         }
 
-        /* левая панель */
         .left-sidebar {
             width: 280px;
             background: linear-gradient(180deg, #0b2b5c 0%, #031f42 100%);
@@ -104,7 +102,6 @@
             border-left: 3px solid #5f9eff;
         }
 
-        /* центральная */
         .main-area {
             flex: 1;
             display: flex;
@@ -114,14 +111,13 @@
             box-shadow: 0 0 0 1px rgba(0,0,0,0.02);
         }
 
-        /* верхняя синяя полоска (как на фото) */
         .top-blue-header {
             background: #1f5090;
             background: linear-gradient(95deg, #1960b0, #12417c);
             padding: 16px 28px;
             display: flex;
             justify-content: space-between;
-            align-items: baseline;
+            align-items: center;
             flex-wrap: wrap;
             box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
         }
@@ -141,9 +137,15 @@
             font-size: 0.75rem;
             font-weight: 600;
             color: #ffeaaf;
+            cursor: pointer;
+            transition: 0.2s;
+            border: none;
         }
 
-        /* контейнер со списком треков */
+            .hot-badge:hover {
+                background: rgba(255, 215, 100, 0.35);
+            }
+
         .tracks-wrapper {
             flex: 1;
             overflow-y: auto;
@@ -212,16 +214,6 @@
             margin-top: 4px;
         }
 
-        .track-album-name {
-            flex: 1.6;
-            font-size: 0.8rem;
-            color: #4f6e96;
-            font-weight: 500;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
         .track-duration-badge {
             font-family: monospace;
             background: #eff3fc;
@@ -232,7 +224,33 @@
             color: #1f5090;
         }
 
-        /* нижний плеер (появляется только при активном треке) */
+        .track-actions {
+            display: flex;
+            gap: 6px;
+            margin-left: 12px;
+        }
+
+        .track-action-btn {
+            background: none;
+            border: 1px solid #e0e7ff;
+            background: white;
+            border-radius: 8px;
+            padding: 4px 8px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: 0.2s;
+        }
+
+            .track-action-btn:hover {
+                background: #f0f4ff;
+                border-color: #b9d0ff;
+            }
+
+        .delete-btn:hover {
+            background: #ffeaea;
+            border-color: #ffaaaa;
+        }
+
         .now-playing-footer {
             background: #0c1d38;
             background: linear-gradient(95deg, #112b4e, #0a1d38);
@@ -323,7 +341,6 @@
             border-radius: 60px;
         }
 
-        /* ========= ПРАВАЯ ПАНЕЛЬ (статьи) ========= */
         .right-news {
             width: 310px;
             background: linear-gradient(95deg, #1960b0, #12417c);
@@ -392,7 +409,6 @@
             display: inline-block;
         }
 
-        /* скроллы */
         .left-sidebar::-webkit-scrollbar, .tracks-wrapper::-webkit-scrollbar, .right-news::-webkit-scrollbar {
             width: 4px;
         }
@@ -404,10 +420,6 @@
 
             .right-news {
                 width: 280px;
-            }
-
-            .track-album-name {
-                display: none;
             }
         }
     </style>
@@ -441,7 +453,7 @@
         <main class="main-area">
             <div class="top-blue-header">
                 <span class="music-center-title">Добро пожаловать!</span>
-                <span class="hot-badge">🎶 Ваша музыка 🎶</span>
+                <button class="hot-badge" id="addTrackBtn">➕ Добавить трек</button>
             </div>
 
             <div class="tracks-wrapper">
@@ -450,7 +462,7 @@
                 </div>
             </div>
 
-            <!-- Нижний плеер (появляется только при старте трека) -->
+            <!-- Нижний плеер -->
             <div class="now-playing-footer" id="globalPlayerFooter">
                 <div class="track-mini">
                     <div class="mini-cover-round" id="miniCoverDynamic">🎵</div>
@@ -507,19 +519,9 @@
     <audio id="coreAudioPlayer" preload="metadata"></audio>
 
     <script>
-        // база треков
-        const tracks = [
-            { id: 1, title: , artist: , album: , durationSec: 198, icon: , audioUrl:  },
-            { id: 2, title: , artist: , album: , durationSec: 227, icon: , audioUrl:  },
-            { id: 3, title: , artist: , album: , durationSec: 182, icon: , audioUrl:  },
-            { id: 4, title: , artist: , album: , durationSec: 211, icon: , audioUrl:  },
-            { id: 5, title: , artist: , album: , durationSec: 205, icon: , audioUrl:  },
-            { id: 6, title: , artist: , album: , durationSec: 193, icon: , audioUrl:  },
-            { id: 7, title: , artist: , album: , durationSec: 176, icon: , audioUrl:  },
-            { id: 8, title: , artist: , album: , durationSec: 210, icon: , audioUrl:  }
-        ];
+        let tracks = [];
+        const API_BASE = '/api/tracks';
 
-        // DOM элементы
         const trackContainer = document.getElementById("trackListRoot");
         const audioElem = document.getElementById("coreAudioPlayer");
         const footer = document.getElementById("globalPlayerFooter");
@@ -531,26 +533,121 @@
         const nextBtn = document.getElementById("nextButton");
         const volumeSlider = document.getElementById("volumeSlider");
         const timeLabel = document.getElementById("timeCodeLabel");
+        const addTrackBtn = document.getElementById("addTrackBtn");
 
-        let currentIdx = 0;
+        let currentIdx = -1;
         let isPlaying = false;
 
-        // helper: формат времени
+        // --- Функция для получения длительности аудиофайла ---
+        function getAudioDuration(file) {
+            return new Promise((resolve) => {
+                const audio = new Audio();
+                audio.preload = 'metadata';
+                const objectUrl = URL.createObjectURL(file);
+                audio.src = objectUrl;
+                audio.addEventListener('loadedmetadata', () => {
+                    URL.revokeObjectURL(objectUrl);
+                    resolve(audio.duration);
+                });
+                audio.addEventListener('error', () => {
+                    URL.revokeObjectURL(objectUrl);
+                    resolve(0);
+                });
+            });
+        }
+
+        // --- Функция для извлечения исполнителя и названия из имени файла ---
+        function parseFilename(filename) {
+            const nameWithoutExt = filename.replace(/\.[^/.]+$/, "");
+            const separators = [" - ", " – ", " — ", "-"];
+            for (const sep of separators) {
+                if (nameWithoutExt.includes(sep)) {
+                    const parts = nameWithoutExt.split(sep);
+                    if (parts.length >= 2) {
+                        return {
+                            artist: parts[0].trim(),
+                            title: parts.slice(1).join(sep).trim()
+                        };
+                    }
+                }
+            }
+            return { artist: "", title: nameWithoutExt };
+        }
+
+        async function fetchTracks() {
+            try {
+                const response = await fetch(API_BASE);
+                if (!response.ok) throw new Error('Failed to fetch tracks');
+                tracks = await response.json();
+                renderTracks();
+                if (tracks.length > 0 && currentIdx === -1) {
+                    currentIdx = 0;
+                    loadTrack(currentIdx, false);
+                }
+            } catch (error) {
+                console.error('Error fetching tracks:', error);
+            }
+        }
+
+        async function addTrack(trackData, audioFile = null) {
+            try {
+                const response = await fetch(API_BASE, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(trackData)
+                });
+                if (!response.ok) throw new Error('Failed to add track');
+                const newTrack = await response.json();
+
+                if (audioFile) {
+                    const formData = new FormData();
+                    formData.append('file', audioFile);
+                    const uploadResponse = await fetch(`${API_BASE}/${newTrack.id}/audio`, {
+                        method: 'POST',
+                        body: formData
+                    });
+                    if (uploadResponse.ok) {
+                        const result = await uploadResponse.json();
+                        newTrack.audioUrl = result.url;
+                    }
+                }
+
+                tracks.push(newTrack);
+                renderTracks();
+                if (tracks.length === 1) {
+                    currentIdx = 0;
+                    loadTrack(0, false);
+                }
+            } catch (error) {
+                console.error('Error adding track:', error);
+                alert('Ошибка при добавлении трека');
+            }
+        }
+
         function formatTime(seconds) {
-            if (isNaN(seconds) || seconds === Infinity) return "0:00";
+            if (isNaN(seconds) || seconds === Infinity || seconds === null) return "0:00";
             const mins = Math.floor(seconds / 60);
             const secs = Math.floor(seconds % 60);
             return `${mins}:${secs.toString().padStart(2, '0')}`;
         }
 
-        // обновление нижнюю панель и выделение активного трека в списке
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str.replace(/[&<>]/g, function (m) {
+                if (m === '&') return '&amp;';
+                if (m === '<') return '&lt;';
+                if (m === '>') return '&gt;';
+                return m;
+            });
+        }
+
         function updateFooterAndActiveTrack() {
-            const track = tracks[currentIdx];
-            if (track) {
-                footerTitle.innerText = track.title;
-                footerArtist.innerText = track.artist;
-                miniCover.innerText = track.icon || "🎵";
-                // подсветка активного трека
+            if (currentIdx >= 0 && currentIdx < tracks.length) {
+                const track = tracks[currentIdx];
+                footerTitle.innerText = track.title || 'Без названия';
+                footerArtist.innerText = track.artist || 'Неизвестный исполнитель';
+                miniCover.innerText = "🎵";
+
                 document.querySelectorAll('.track-row').forEach(row => {
                     const rowId = parseInt(row.getAttribute('data-id'));
                     if (rowId === track.id) {
@@ -561,33 +658,38 @@
                         row.style.borderLeft = "1px solid #eef2f9";
                     }
                 });
-            } else {
-                footerTitle.innerText = "Не выбрано";
-                footerArtist.innerText = "—";
-                miniCover.innerText = "🎵";
             }
         }
 
         function loadTrack(index, autoplay = false) {
-            if (index < 0) index = 0;
-            if (index >= tracks.length) index = 0;
+            if (index < 0 || index >= tracks.length) return;
             currentIdx = index;
             const track = tracks[currentIdx];
             if (!track) return;
-            audioElem.src = track.audioUrl;
-            audioElem.load();
+
+            if (track.audioUrl) {
+                audioElem.src = track.audioUrl;
+                audioElem.load();
+            } else {
+                audioElem.src = '';
+                timeLabel.innerText = `0:00 / ${formatTime(track.durationSec)}`;
+            }
+
             updateFooterAndActiveTrack();
-            // отображение времени после загрузки метаданных
+
             audioElem.addEventListener('loadedmetadata', () => {
-                if (!isNaN(audioElem.duration)) {
+                if (!isNaN(audioElem.duration) && audioElem.duration > 0) {
                     timeLabel.innerText = `0:00 / ${formatTime(audioElem.duration)}`;
                 } else {
                     timeLabel.innerText = `0:00 / ${formatTime(track.durationSec)}`;
                 }
             }, { once: true });
-            timeLabel.innerText = `0:00 / ${formatTime(track.durationSec)}`;
 
-            if (autoplay) {
+            if (!audioElem.src) {
+                timeLabel.innerText = `0:00 / ${formatTime(track.durationSec)}`;
+            }
+
+            if (autoplay && audioElem.src) {
                 audioElem.play().then(() => {
                     isPlaying = true;
                     playPauseBtn.innerHTML = "⏸";
@@ -602,11 +704,14 @@
                 audioElem.pause();
                 isPlaying = false;
                 playPauseBtn.innerHTML = "▶";
+                if (track.audioUrl) {
+                    footer.classList.add("active");
+                }
             }
         }
 
         function startPlayback() {
-            if (!tracks.length) return;
+            if (!tracks.length || currentIdx < 0) return;
             if (!audioElem.src || audioElem.ended || audioElem.readyState === 0) {
                 loadTrack(currentIdx, true);
                 return;
@@ -625,7 +730,7 @@
         }
 
         function togglePlayPause() {
-            if (!tracks.length) return;
+            if (!tracks.length || currentIdx < 0) return;
             if (!audioElem.src || audioElem.ended) {
                 loadTrack(currentIdx, true);
                 footer.classList.add("active");
@@ -678,13 +783,10 @@
                 const cur = formatTime(audioElem.currentTime);
                 const dur = formatTime(audioElem.duration);
                 timeLabel.innerText = `${cur} / ${dur}`;
-            } else {
+            } else if (currentIdx >= 0 && currentIdx < tracks.length) {
                 const track = tracks[currentIdx];
-                if (track && audioElem.currentTime) {
-                    timeLabel.innerText = `${formatTime(audioElem.currentTime)} / ${formatTime(track.durationSec)}`;
-                } else if (track) {
-                    timeLabel.innerText = `0:00 / ${formatTime(track.durationSec)}`;
-                }
+                const currentTime = audioElem.currentTime || 0;
+                timeLabel.innerText = `${formatTime(currentTime)} / ${formatTime(track.durationSec)}`;
             }
         }
 
@@ -692,7 +794,6 @@
             nextTrack();
         }
 
-        // отрисовка списка треков в центре
         function renderTracks() {
             trackContainer.innerHTML = "";
             tracks.forEach(track => {
@@ -700,17 +801,20 @@
                 row.className = "track-row";
                 row.setAttribute("data-id", track.id);
                 row.innerHTML = `
-                    <div class="track-info-group">
-                        <div class="track-icon-circle">${track.icon || "🎵"}</div>
+                    <div class="track-info-group" style="cursor: pointer;">
+                        <div class="track-icon-circle">🎵</div>
                         <div class="track-name-artist">
-                            <div class="track-name">${escapeHtml(track.title)}</div>
-                            <div class="track-artist">${escapeHtml(track.artist)}</div>
+                            <div class="track-name">${escapeHtml(track.title) || 'Без названия'}</div>
+                            <div class="track-artist">${escapeHtml(track.artist) || 'Неизвестный'}</div>
                         </div>
                     </div>
-                    <div class="track-album-name">${escapeHtml(track.album)}</div>
                     <div class="track-duration-badge">${formatTime(track.durationSec)}</div>
+                    <div class="track-actions">
+                        <button class="track-action-btn delete-btn" title="Удалить">🗑️</button>
+                    </div>
                 `;
-                row.addEventListener("click", () => {
+
+                row.querySelector('.track-info-group').addEventListener("click", () => {
                     const idx = tracks.findIndex(t => t.id === track.id);
                     if (idx !== -1) {
                         currentIdx = idx;
@@ -718,38 +822,80 @@
                         footer.classList.add("active");
                     }
                 });
+
+                row.querySelector('.delete-btn').addEventListener("click", (e) => {
+                    e.stopPropagation();
+                    deleteTrack(track.id);
+                });
+
                 trackContainer.appendChild(row);
             });
-        }
 
-        function escapeHtml(str) {
-            return str.replace(/[&<>]/g, function (m) {
-                if (m === '&') return '&amp;';
-                if (m === '<') return '&lt;';
-                if (m === '>') return '&gt;';
-                return m;
-            });
-        }
-
-        function init() {
-            renderTracks();
-            if (tracks.length) {
-                currentIdx = 0;
-                loadTrack(0, false);
-                footer.classList.remove("active");   // плеер скрыт до первого запуска
-                isPlaying = false;
-                playPauseBtn.innerHTML = "▶";
+            if (currentIdx >= 0 && currentIdx < tracks.length) {
+                updateFooterAndActiveTrack();
             }
-            playPauseBtn.addEventListener("click", togglePlayPause);
-            prevBtn.addEventListener("click", prevTrack);
-            nextBtn.addEventListener("click", nextTrack);
-            volumeSlider.addEventListener("input", setVolume);
-            audioElem.addEventListener("timeupdate", updateTimeDisplay);
-            audioElem.addEventListener("ended", onTrackEnded);
-            audioElem.volume = volumeSlider.value;
         }
 
-        init();
+        // --- Обработчик кнопки "Добавить трек" ---
+        addTrackBtn.addEventListener('click', () => {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = 'audio/*';
+            input.onchange = async (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                const { artist, title } = parseFilename(file.name);
+                const duration = await getAudioDuration(file);
+
+                const newTrack = {
+                    title: title || file.name,
+                    artist: artist || 'Неизвестный исполнитель',
+                    durationSec: Math.round(duration) || 0,
+                    audioUrl: '',
+                };
+
+                await addTrack(newTrack, file);
+            };
+            input.click();
+        });
+
+        async function deleteTrack(id) {
+            if (!confirm('Удалить этот трек?')) return;
+            try {
+                const response = await fetch(`${API_BASE}/${id}`, {
+                    method: 'DELETE'
+                });
+                if (!response.ok) throw new Error('Failed to delete track');
+                tracks = tracks.filter(t => t.id !== id);
+                if (currentIdx >= tracks.length) {
+                    currentIdx = tracks.length - 1;
+                }
+                renderTracks();
+                if (tracks.length > 0 && currentIdx >= 0) {
+                    loadTrack(currentIdx, false);
+                } else {
+                    audioElem.src = '';
+                    footer.classList.remove('active');
+                    footerTitle.innerText = 'Не выбрано';
+                    footerArtist.innerText = '—';
+                    miniCover.innerText = '🎵';
+                }
+            } catch (error) {
+                console.error('Error deleting track:', error);
+                alert('Ошибка при удалении трека');
+            }
+        }
+
+        playPauseBtn.addEventListener("click", togglePlayPause);
+        prevBtn.addEventListener("click", prevTrack);
+        nextBtn.addEventListener("click", nextTrack);
+        volumeSlider.addEventListener("input", setVolume);
+        audioElem.addEventListener("timeupdate", updateTimeDisplay);
+        audioElem.addEventListener("ended", onTrackEnded);
+        audioElem.volume = volumeSlider.value;
+
+        fetchTracks();
     </script>
 </body>
 </html>

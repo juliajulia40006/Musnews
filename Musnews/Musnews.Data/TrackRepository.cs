@@ -24,5 +24,21 @@ namespace Musnews.Data
             await _context.Tracks.AddAsync(track);
             await _context.SaveChangesAsync();
         }
+
+        public async Task UpdateAsync(Track track)
+        {
+            _context.Tracks.Update(track);
+            await _context.SaveChangesAsync();
+        }
+
+        public async Task DeleteAsync(int id)
+        {
+            var track = await _context.Tracks.FindAsync(id);
+            if (track != null)
+            {
+                _context.Tracks.Remove(track);
+                await _context.SaveChangesAsync();
+            }
+        }
     }
 }
