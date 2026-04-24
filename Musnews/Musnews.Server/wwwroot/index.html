@@ -47,9 +47,9 @@
                 font-weight: 800;
                 letter-spacing: -0.5px;
                 background: linear-gradient(130deg, #ffffff, #c8ddff);
-                background-clip: text;
                 -webkit-background-clip: text;
-                color: transparent;
+                background-clip: text;
+                -webkit-text-fill-color: transparent;
             }
 
             .logo-block p {
@@ -836,7 +836,6 @@
             }
         }
 
-        // --- Обработчик кнопки "Добавить трек" ---
         addTrackBtn.addEventListener('click', () => {
             const input = document.createElement('input');
             input.type = 'file';

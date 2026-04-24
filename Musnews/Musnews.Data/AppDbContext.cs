@@ -19,7 +19,10 @@ namespace Musnews.Data
             modelBuilder.Entity<Playlist>()
                 .HasMany(p => p.Tracks)
                 .WithMany()
-                .UsingEntity(j => j.ToTable("PlaylistTracks"));
+                .UsingEntity(j =>
+                {
+                    j.ToTable("PlaylistTracks");
+                });
         }
     }
 }
