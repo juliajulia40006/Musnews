@@ -1,6 +1,8 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Musnews.Data;
 using Musnews.Models;
+using Musnews.Models.DTO;
+using Microsoft.EntityFrameworkCore;
 
 namespace Musnews.Server.Controllers;
 
@@ -19,6 +21,14 @@ public class TracksController : ControllerBase
     public async Task<IActionResult> GetAll()
     {
         var tracks = await _trackRepo.GetAllAsync();
+        var trackDtos = tracks.Select(t => new TrackDto
+        {
+            Id = t.Id,
+            Title = t.Title,
+            Artist = t.Artist,
+            Album = t.Album,
+            DurationSec = t.DurationSec
+        });
         return Ok(tracks);
     }
 

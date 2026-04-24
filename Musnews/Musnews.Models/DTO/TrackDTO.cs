@@ -6,10 +6,13 @@ using System.Threading.Tasks;
 
 namespace Musnews.Models.DTO
 {
-    internal class TrackDto
+    public class TrackDto
     {
         public int Id { get; set; }
         public string Title { get; set; } = string.Empty;
         public string Artist { get; set; } = string.Empty;
+        public string Album { get; set; } = string.Empty;
+        public int DurationSec { get; set; }
+
     }
 }

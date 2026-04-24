@@ -17,6 +17,7 @@ builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlite("Data Source=music.db"));
 
 builder.Services.AddScoped<ITrackRepository, TrackRepository>();
+builder.Services.AddScoped<AppDbContext>();
 
 builder.Services.AddSpaStaticFiles(configuration =>
 {
