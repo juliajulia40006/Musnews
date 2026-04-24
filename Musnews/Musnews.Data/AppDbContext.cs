@@ -11,5 +11,15 @@ namespace Musnews.Data
         public DbSet<Track> Tracks { get; set; }
         public DbSet<Playlist> Playlists { get; set; }
         public DbSet<User> Users { get; set; }
+
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            base.OnModelCreating(modelBuilder);
+
+            modelBuilder.Entity<Playlist>()
+                .HasMany(p => p.Tracks)
+                .WithMany()
+                .UsingEntity(j => j.ToTable("PlaylistTracks"));
+        }
     }
 }
