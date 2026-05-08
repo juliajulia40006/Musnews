@@ -1,5 +1,7 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 using Musnews.Data;
 using Musnews.Models;
 
@@ -7,6 +9,7 @@ namespace Musnews.Server.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[Authorize]
 public class UsersController : ControllerBase
 {
     private readonly AppDbContext _context;
@@ -17,43 +20,47 @@ public class UsersController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<User>>> GetAll()
+    public async Task<ActionResult<IEnumerable<object>>> GetAll()
     {
-        var users = await _context.Users.ToListAsync();
+        var users = await _context.Users
+            .Select(u => new
+            {
+                u.Id,
+                u.Username,
+                u.CreatedAt
+            })
+            .ToListAsync();
         return Ok(users);
     }
 
     [HttpGet("{id}")]
-    public async Task<ActionResult<User>> GetById(int id)
+    public async Task<ActionResult<object>> GetById(int id)
     {
         var user = await _context.Users.FindAsync(id);
 
         if (user == null)
             return NotFound();
 
-        return Ok(user);
-    }
-
-    [HttpPost]
-    public async Task<ActionResult<User>> Create([FromBody] User user)
-    {
-        _context.Users.Add(user);
-        await _context.SaveChangesAsync();
-
-        return CreatedAtAction(nameof(GetById), new { id = user.Id }, user);
+        return Ok(new
+        {
+            user.Id,
+            user.Username,
+            user.CreatedAt
+        });
     }
 
     [HttpPut("{id}")]
-    public async Task<IActionResult> Update(int id, [FromBody] User user)
+    public async Task<IActionResult> Update(int id, [FromBody] UserUpdateDto userUpdate)
     {
-        if (id != user.Id)
-            return BadRequest("ID in URL does not match ID in body");
+        var currentUserId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
+        if (currentUserId != id)
+            return Forbid();
 
         var existingUser = await _context.Users.FindAsync(id);
         if (existingUser == null)
             return NotFound();
 
-        existingUser.Username = user.Username;
+        existingUser.Username = userUpdate.Username;
 
         await _context.SaveChangesAsync();
         return NoContent();
@@ -62,6 +69,10 @@ public class UsersController : ControllerBase
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(int id)
     {
+        var currentUserId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
+        if (currentUserId != id)
+            return Forbid();
+
         var user = await _context.Users.FindAsync(id);
         if (user == null)
             return NotFound();
@@ -71,4 +82,9 @@ public class UsersController : ControllerBase
 
         return NoContent();
     }
+}
+
+public class UserUpdateDto
+{
+    public string Username { get; set; } = string.Empty;
 }
