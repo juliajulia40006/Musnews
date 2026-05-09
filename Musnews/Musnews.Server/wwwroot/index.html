@@ -538,6 +538,43 @@
         let currentIdx = -1;
         let isPlaying = false;
 
+        function checkAuth() {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                window.location.href = '/login.html';
+                return false;
+            }
+            return true;
+        }
+
+        function getAuthHeaders() {
+            const token = localStorage.getItem('token');
+            return {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            };
+        }
+
+        function logout() {
+            localStorage.clear();
+            window.location.href = '/login.html';
+        }
+
+        if (!checkAuth()) {
+            throw new Error('Not authenticated');
+        }
+
+        document.querySelector('.top-blue-header').innerHTML += `
+    <div style="display: flex; align-items: center; gap: 12px;">
+        <span style="color: white; font-size: 0.9rem;" id="currentUserDisplay"></span>
+        <button onclick="logout()" style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 6px 16px; border-radius: 20px; cursor: pointer;">Выйти</button>
+    </div>
+`;
+        const currentUsername = localStorage.getItem('username');
+        if (currentUsername) {
+            document.getElementById('currentUserDisplay').textContent = currentUsername;
+        }
+
         // --- Функция для получения длительности аудиофайла ---
         function getAudioDuration(file) {
             return new Promise((resolve) => {
