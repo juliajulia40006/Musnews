@@ -560,19 +560,30 @@
             window.location.href = '/login.html';
         }
 
+        // Проверяем авторизацию без исключения
         if (!checkAuth()) {
-            throw new Error('Not authenticated');
-        }
+            // checkAuth уже перенаправит на страницу логина
+        } else {
+            // Добавляем информацию о пользователе и кнопку выхода
+            const headerDiv = document.querySelector('.top-blue-header');
+            const userInfoDiv = document.createElement('div');
+            userInfoDiv.style.cssText = 'display: flex; align-items: center; gap: 12px;';
 
-        document.querySelector('.top-blue-header').innerHTML += `
-    <div style="display: flex; align-items: center; gap: 12px;">
-        <span style="color: white; font-size: 0.9rem;" id="currentUserDisplay"></span>
-        <button onclick="logout()" style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 6px 16px; border-radius: 20px; cursor: pointer;">Выйти</button>
-    </div>
-`;
-        const currentUsername = localStorage.getItem('username');
-        if (currentUsername) {
-            document.getElementById('currentUserDisplay').textContent = currentUsername;
+            const currentUsername = localStorage.getItem('username');
+            if (currentUsername) {
+                const usernameSpan = document.createElement('span');
+                usernameSpan.style.cssText = 'color: white; font-size: 0.9rem;';
+                usernameSpan.textContent = currentUsername;
+                userInfoDiv.appendChild(usernameSpan);
+            }
+
+            const logoutBtn = document.createElement('button');
+            logoutBtn.textContent = 'Выйти';
+            logoutBtn.onclick = logout;
+            logoutBtn.style.cssText = 'background: rgba(255,255,255,0.2); border: none; color: white; padding: 6px 16px; border-radius: 20px; cursor: pointer;';
+            userInfoDiv.appendChild(logoutBtn);
+
+            headerDiv.appendChild(userInfoDiv);
         }
 
         // --- Функция для получения длительности аудиофайла ---
@@ -613,7 +624,22 @@
 
         async function fetchTracks() {
             try {
-                const response = await fetch(API_BASE);
+                const token = localStorage.getItem('token');
+                console.log('Fetching tracks with token:', token);
+
+                const response = await fetch(API_BASE, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (response.status === 401) {
+                    console.error('Unauthorized - redirecting to login');
+                    window.location.href = '/login.html';
+                    return;
+                }
+
                 if (!response.ok) throw new Error('Failed to fetch tracks');
                 tracks = await response.json();
                 renderTracks();
@@ -630,7 +656,7 @@
             try {
                 const response = await fetch(API_BASE, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: getAuthHeaders(),
                     body: JSON.stringify(trackData)
                 });
                 if (!response.ok) throw new Error('Failed to add track');
@@ -641,6 +667,9 @@
                     formData.append('file', audioFile);
                     const uploadResponse = await fetch(`${API_BASE}/${newTrack.id}/audio`, {
                         method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${localStorage.getItem('token')}`
+                        },
                         body: formData
                     });
                     if (uploadResponse.ok) {
@@ -658,6 +687,34 @@
             } catch (error) {
                 console.error('Error adding track:', error);
                 alert('Ошибка при добавлении трека');
+            }
+        }
+
+        async function deleteTrack(id) {
+            if (!confirm('Удалить этот трек?')) return;
+            try {
+                const response = await fetch(`${API_BASE}/${id}`, {
+                    method: 'DELETE',
+                    headers: getAuthHeaders()
+                });
+                if (!response.ok) throw new Error('Failed to delete track');
+                tracks = tracks.filter(t => t.id !== id);
+                if (currentIdx >= tracks.length) {
+                    currentIdx = tracks.length - 1;
+                }
+                renderTracks();
+                if (tracks.length > 0 && currentIdx >= 0) {
+                    loadTrack(currentIdx, false);
+                } else {
+                    audioElem.src = '';
+                    footer.classList.remove('active');
+                    footerTitle.innerText = 'Не выбрано';
+                    footerArtist.innerText = '—';
+                    miniCover.innerText = '🎵';
+                }
+            } catch (error) {
+                console.error('Error deleting track:', error);
+                alert('Ошибка при удалении трека');
             }
         }
 
@@ -873,54 +930,30 @@
             }
         }
 
-        addTrackBtn.addEventListener('click', () => {
-            const input = document.createElement('input');
-            input.type = 'file';
-            input.accept = 'audio/*';
-            input.onchange = async (e) => {
-                const file = e.target.files[0];
-                if (!file) return;
+        if (addTrackBtn) {
+            addTrackBtn.addEventListener('click', () => {
+                console.log('Add track button clicked');
+                const input = document.createElement('input');
+                input.type = 'file';
+                input.accept = 'audio/*';
+                input.onchange = async (e) => {
+                    const file = e.target.files[0];
+                    if (!file) return;
 
-                const { artist, title } = parseFilename(file.name);
-                const duration = await getAudioDuration(file);
+                    const { artist, title } = parseFilename(file.name);
+                    const duration = await getAudioDuration(file);
 
-                const newTrack = {
-                    title: title || file.name,
-                    artist: artist || 'Неизвестный исполнитель',
-                    durationSec: Math.round(duration) || 0,
-                    audioUrl: '',
+                    const newTrack = {
+                        title: title || file.name,
+                        artist: artist || 'Неизвестный исполнитель',
+                        durationSec: Math.round(duration) || 0,
+                        audioUrl: '',
+                    };
+
+                    await addTrack(newTrack, file);
                 };
-
-                await addTrack(newTrack, file);
-            };
-            input.click();
-        });
-
-        async function deleteTrack(id) {
-            if (!confirm('Удалить этот трек?')) return;
-            try {
-                const response = await fetch(`${API_BASE}/${id}`, {
-                    method: 'DELETE'
-                });
-                if (!response.ok) throw new Error('Failed to delete track');
-                tracks = tracks.filter(t => t.id !== id);
-                if (currentIdx >= tracks.length) {
-                    currentIdx = tracks.length - 1;
-                }
-                renderTracks();
-                if (tracks.length > 0 && currentIdx >= 0) {
-                    loadTrack(currentIdx, false);
-                } else {
-                    audioElem.src = '';
-                    footer.classList.remove('active');
-                    footerTitle.innerText = 'Не выбрано';
-                    footerArtist.innerText = '—';
-                    miniCover.innerText = '🎵';
-                }
-            } catch (error) {
-                console.error('Error deleting track:', error);
-                alert('Ошибка при удалении трека');
-            }
+                input.click();
+            });
         }
 
         playPauseBtn.addEventListener("click", togglePlayPause);

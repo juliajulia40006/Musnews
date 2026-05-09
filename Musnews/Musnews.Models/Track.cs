@@ -1,14 +1,27 @@
-﻿namespace Musnews.Models
+﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+
+namespace Musnews.Models
 {
     public class Track
     {
+        [Key]
         public int Id { get; set; }
-        public string Title { get; set; } = string.Empty;
-        public string Artist { get; set; } = string.Empty;
-        public string Album { get; set; } = string.Empty;
-        public int DurationSec { get; set; }
-        public string AudioUrl { get; set; } = string.Empty;
-        public string CoverUrl { get; set; } = string.Empty;
 
+        [Required]
+        public string Title { get; set; } = string.Empty;
+
+        public string Artist { get; set; } = string.Empty;
+
+        public string? Album { get; set; }
+
+        public int DurationSec { get; set; }
+
+        public string? AudioUrl { get; set; }
+
+        public int UserId { get; set; }
+
+        [ForeignKey("UserId")]
+        public User? User { get; set; }
     }
 }
