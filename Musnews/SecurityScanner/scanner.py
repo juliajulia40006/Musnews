@@ -8,6 +8,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from xss_browser_test import check_xss
+from sql_test import check_sql_source, check_playlist_id, check_login_input
 
 
 # Адрес запущенного Musnews
@@ -358,6 +359,21 @@ def main():
             "Автоматическая проверка Stored XSS",
             "ERROR",
             "Браузерная проверка пропущена: сервер недоступен."
+        )
+    print("\n" + "-" * 45)
+    print("ПРОВЕРКА SQL-ИНЪЕКЦИЙ")
+    print("-" * 45)
+
+    results.append(check_sql_source())
+
+    if server_available:
+        results.append(check_playlist_id())
+        results.append(check_login_input())
+    else:
+        add_result(
+            "SQL: проверка API",
+            "ERROR",
+            "SQL-проверки API пропущены: сервер недоступен."
         )
 
     try:
