@@ -170,7 +170,7 @@
 
                     console.log('Token saved:', data.token); 
 
-                    window.location.href = '/index.html';
+                    window.location.replace('/index.html?v=' + Date.now());
                 } else {
                     errorDiv.style.display = 'block';
                     errorDiv.textContent = data.message || 'Ошибка входа';

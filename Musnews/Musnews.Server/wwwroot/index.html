@@ -1053,12 +1053,13 @@ async function loadSharedPlaylists() {
                 Закрыть
             </button>
             <h2>Музыкальный плейлист</h2>
-            <div>${playlist.name}</div>
+           <div id="safePlaylistTitle"></div>
             <p>Список композиций пока пуст.</p>
 `;
 
                         document.body.appendChild(panel);
 
+                        panel.querySelector('#safePlaylistTitle').textContent = playlist.name;
 
                         panel.querySelector('#closePlaylistPreview')
                             ?.addEventListener('click', () => panel.remove());
