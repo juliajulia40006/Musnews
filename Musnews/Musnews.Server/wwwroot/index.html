@@ -435,12 +435,14 @@
             </div>
             <div class="nav-menu">
                 <div class="section-title">ПЛЕЙЛИСТЫ</div>
-                <ul class="playlist-items">
-                    <li> Lo-fi для работы</li>
-                    <li> Классика 1800х </li>
-                    <li> Для выходных дней </li>
-                    <li> Грустный плейлист </li>
-                </ul>
+
+                <ul class="playlist-items" id="sharedPlaylists"></ul>
+
+                <button id="createPlaylistBtn" type="button"
+                        style="width:100%; padding:12px; margin-top:10px;
+               border:0; border-radius:10px; cursor:pointer;">
+                    + Создать плейлист
+                </button>
                 <div class="section-title" style="margin-top: 24px;">АЛЬБОМЫ</div>
                 <div class="album-row">9MM PB - MOVEMENT</div>
                 <div class="album-row">THE HATTERS - ПОЛНАЯ ШЛЯПА</div>
@@ -519,452 +521,594 @@
     <audio id="coreAudioPlayer" preload="metadata"></audio>
 
     <script>
-        let tracks = [];
-        const API_BASE = '/api/tracks';
+                let tracks = [];
+                const API_BASE = '/api/tracks';
 
-        const trackContainer = document.getElementById("trackListRoot");
-        const audioElem = document.getElementById("coreAudioPlayer");
-        const footer = document.getElementById("globalPlayerFooter");
-        const footerTitle = document.getElementById("footerTrackTitle");
-        const footerArtist = document.getElementById("footerTrackArtist");
-        const miniCover = document.getElementById("miniCoverDynamic");
-        const playPauseBtn = document.getElementById("playPauseButton");
-        const prevBtn = document.getElementById("prevButton");
-        const nextBtn = document.getElementById("nextButton");
-        const volumeSlider = document.getElementById("volumeSlider");
-        const timeLabel = document.getElementById("timeCodeLabel");
-        const addTrackBtn = document.getElementById("addTrackBtn");
+                const trackContainer = document.getElementById("trackListRoot");
+                const audioElem = document.getElementById("coreAudioPlayer");
+                const footer = document.getElementById("globalPlayerFooter");
+                const footerTitle = document.getElementById("footerTrackTitle");
+                const footerArtist = document.getElementById("footerTrackArtist");
+                const miniCover = document.getElementById("miniCoverDynamic");
+                const playPauseBtn = document.getElementById("playPauseButton");
+                const prevBtn = document.getElementById("prevButton");
+                const nextBtn = document.getElementById("nextButton");
+                const volumeSlider = document.getElementById("volumeSlider");
+                const timeLabel = document.getElementById("timeCodeLabel");
+                const addTrackBtn = document.getElementById("addTrackBtn");
 
-        let currentIdx = -1;
-        let isPlaying = false;
+                let currentIdx = -1;
+                let isPlaying = false;
 
-        function checkAuth() {
-            const token = localStorage.getItem('token');
-            if (!token) {
-                window.location.href = '/login.html';
-                return false;
-            }
-            return true;
-        }
-
-        function getAuthHeaders() {
-            const token = localStorage.getItem('token');
-            return {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-            };
-        }
-
-        function logout() {
-            localStorage.clear();
-            window.location.href = '/login.html';
-        }
-
-        // Проверяем авторизацию без исключения
-        if (!checkAuth()) {
-            // checkAuth уже перенаправит на страницу логина
-        } else {
-            // Добавляем информацию о пользователе и кнопку выхода
-            const headerDiv = document.querySelector('.top-blue-header');
-            const userInfoDiv = document.createElement('div');
-            userInfoDiv.style.cssText = 'display: flex; align-items: center; gap: 12px;';
-
-            const currentUsername = localStorage.getItem('username');
-            if (currentUsername) {
-                const usernameSpan = document.createElement('span');
-                usernameSpan.style.cssText = 'color: white; font-size: 0.9rem;';
-                usernameSpan.textContent = currentUsername;
-                userInfoDiv.appendChild(usernameSpan);
-            }
-
-            const logoutBtn = document.createElement('button');
-            logoutBtn.textContent = 'Выйти';
-            logoutBtn.onclick = logout;
-            logoutBtn.style.cssText = 'background: rgba(255,255,255,0.2); border: none; color: white; padding: 6px 16px; border-radius: 20px; cursor: pointer;';
-            userInfoDiv.appendChild(logoutBtn);
-
-            headerDiv.appendChild(userInfoDiv);
-        }
-
-        // --- Функция для получения длительности аудиофайла ---
-        function getAudioDuration(file) {
-            return new Promise((resolve) => {
-                const audio = new Audio();
-                audio.preload = 'metadata';
-                const objectUrl = URL.createObjectURL(file);
-                audio.src = objectUrl;
-                audio.addEventListener('loadedmetadata', () => {
-                    URL.revokeObjectURL(objectUrl);
-                    resolve(audio.duration);
-                });
-                audio.addEventListener('error', () => {
-                    URL.revokeObjectURL(objectUrl);
-                    resolve(0);
-                });
-            });
-        }
-
-        // --- Функция для извлечения исполнителя и названия из имени файла ---
-        function parseFilename(filename) {
-            const nameWithoutExt = filename.replace(/\.[^/.]+$/, "");
-            const separators = [" - ", " – ", " — ", "-"];
-            for (const sep of separators) {
-                if (nameWithoutExt.includes(sep)) {
-                    const parts = nameWithoutExt.split(sep);
-                    if (parts.length >= 2) {
-                        return {
-                            artist: parts[0].trim(),
-                            title: parts.slice(1).join(sep).trim()
-                        };
+                function checkAuth() {
+                    const token = localStorage.getItem('token');
+                    if (!token) {
+                        window.location.href = '/login.html';
+                        return false;
                     }
+                    return true;
                 }
-            }
-            return { artist: "", title: nameWithoutExt };
-        }
 
-        async function fetchTracks() {
-            try {
-                const token = localStorage.getItem('token');
-                console.log('Fetching tracks with token:', token);
+                function getAuthHeaders() {
+                    const token = localStorage.getItem('token');
+                    return {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    };
+                }
 
-                const response = await fetch(API_BASE, {
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    }
-                });
-
-                if (response.status === 401) {
-                    console.error('Unauthorized - redirecting to login');
+                function logout() {
+                    localStorage.clear();
                     window.location.href = '/login.html';
-                    return;
                 }
 
-                if (!response.ok) throw new Error('Failed to fetch tracks');
-                tracks = await response.json();
-                renderTracks();
-                if (tracks.length > 0 && currentIdx === -1) {
-                    currentIdx = 0;
-                    loadTrack(currentIdx, false);
+                // Проверяем авторизацию без исключения
+                if (!checkAuth()) {
+                    // checkAuth уже перенаправит на страницу логина
+                } else {
+                    // Добавляем информацию о пользователе и кнопку выхода
+                    const headerDiv = document.querySelector('.top-blue-header');
+                    const userInfoDiv = document.createElement('div');
+                    userInfoDiv.style.cssText = 'display: flex; align-items: center; gap: 12px;';
+
+                    const currentUsername = localStorage.getItem('username');
+                    if (currentUsername) {
+                        const usernameSpan = document.createElement('span');
+                        usernameSpan.style.cssText = 'color: white; font-size: 0.9rem;';
+                        usernameSpan.textContent = currentUsername;
+                        userInfoDiv.appendChild(usernameSpan);
+                    }
+
+                    const logoutBtn = document.createElement('button');
+                    logoutBtn.textContent = 'Выйти';
+                    logoutBtn.onclick = logout;
+                    logoutBtn.style.cssText = 'background: rgba(255,255,255,0.2); border: none; color: white; padding: 6px 16px; border-radius: 20px; cursor: pointer;';
+                    userInfoDiv.appendChild(logoutBtn);
+
+                    headerDiv.appendChild(userInfoDiv);
                 }
-            } catch (error) {
-                console.error('Error fetching tracks:', error);
-            }
-        }
 
-        async function addTrack(trackData, audioFile = null) {
-            try {
-                const response = await fetch(API_BASE, {
-                    method: 'POST',
-                    headers: getAuthHeaders(),
-                    body: JSON.stringify(trackData)
-                });
-                if (!response.ok) throw new Error('Failed to add track');
-                const newTrack = await response.json();
-
-                if (audioFile) {
-                    const formData = new FormData();
-                    formData.append('file', audioFile);
-                    const uploadResponse = await fetch(`${API_BASE}/${newTrack.id}/audio`, {
-                        method: 'POST',
-                        headers: {
-                            'Authorization': `Bearer ${localStorage.getItem('token')}`
-                        },
-                        body: formData
+                // --- Функция для получения длительности аудиофайла ---
+                function getAudioDuration(file) {
+                    return new Promise((resolve) => {
+                        const audio = new Audio();
+                        audio.preload = 'metadata';
+                        const objectUrl = URL.createObjectURL(file);
+                        audio.src = objectUrl;
+                        audio.addEventListener('loadedmetadata', () => {
+                            URL.revokeObjectURL(objectUrl);
+                            resolve(audio.duration);
+                        });
+                        audio.addEventListener('error', () => {
+                            URL.revokeObjectURL(objectUrl);
+                            resolve(0);
+                        });
                     });
-                    if (uploadResponse.ok) {
-                        const result = await uploadResponse.json();
-                        newTrack.audioUrl = result.url;
+                }
+
+                // --- Функция для извлечения исполнителя и названия из имени файла ---
+                function parseFilename(filename) {
+                    const nameWithoutExt = filename.replace(/\.[^/.]+$/, "");
+                    const separators = [" - ", " – ", " — ", "-"];
+                    for (const sep of separators) {
+                        if (nameWithoutExt.includes(sep)) {
+                            const parts = nameWithoutExt.split(sep);
+                            if (parts.length >= 2) {
+                                return {
+                                    artist: parts[0].trim(),
+                                    title: parts.slice(1).join(sep).trim()
+                                };
+                            }
+                        }
+                    }
+                    return { artist: "", title: nameWithoutExt };
+                }
+
+                async function fetchTracks() {
+                    try {
+                        const token = localStorage.getItem('token');
+                        console.log('Fetching tracks with token:', token);
+
+                        const response = await fetch(API_BASE, {
+                            headers: {
+                                'Authorization': `Bearer ${token}`,
+                                'Content-Type': 'application/json'
+                            }
+                        });
+
+                        if (response.status === 401) {
+                            console.error('Unauthorized - redirecting to login');
+                            window.location.href = '/login.html';
+                            return;
+                        }
+
+                        if (!response.ok) throw new Error('Failed to fetch tracks');
+                        tracks = await response.json();
+                        renderTracks();
+                        if (tracks.length > 0 && currentIdx === -1) {
+                            currentIdx = 0;
+                            loadTrack(currentIdx, false);
+                        }
+                    } catch (error) {
+                        console.error('Error fetching tracks:', error);
                     }
                 }
 
-                tracks.push(newTrack);
-                renderTracks();
-                if (tracks.length === 1) {
-                    currentIdx = 0;
-                    loadTrack(0, false);
+                async function addTrack(trackData, audioFile = null) {
+                    try {
+                        const response = await fetch(API_BASE, {
+                            method: 'POST',
+                            headers: getAuthHeaders(),
+                            body: JSON.stringify(trackData)
+                        });
+                        if (!response.ok) throw new Error('Failed to add track');
+                        const newTrack = await response.json();
+
+                        if (audioFile) {
+                            const formData = new FormData();
+                            formData.append('file', audioFile);
+                            const uploadResponse = await fetch(`${API_BASE}/${newTrack.id}/audio`, {
+                                method: 'POST',
+                                headers: {
+                                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                                },
+                                body: formData
+                            });
+                            if (uploadResponse.ok) {
+                                const result = await uploadResponse.json();
+                                newTrack.audioUrl = result.url;
+                            }
+                        }
+
+                        tracks.push(newTrack);
+                        renderTracks();
+                        if (tracks.length === 1) {
+                            currentIdx = 0;
+                            loadTrack(0, false);
+                        }
+                    } catch (error) {
+                        console.error('Error adding track:', error);
+                        alert('Ошибка при добавлении трека');
+                    }
                 }
-            } catch (error) {
-                console.error('Error adding track:', error);
-                alert('Ошибка при добавлении трека');
-            }
-        }
 
-        async function deleteTrack(id) {
-            if (!confirm('Удалить этот трек?')) return;
-            try {
-                const response = await fetch(`${API_BASE}/${id}`, {
-                    method: 'DELETE',
-                    headers: getAuthHeaders()
-                });
-                if (!response.ok) throw new Error('Failed to delete track');
-                tracks = tracks.filter(t => t.id !== id);
-                if (currentIdx >= tracks.length) {
-                    currentIdx = tracks.length - 1;
+                async function deleteTrack(id) {
+                    if (!confirm('Удалить этот трек?')) return;
+                    try {
+                        const response = await fetch(`${API_BASE}/${id}`, {
+                            method: 'DELETE',
+                            headers: getAuthHeaders()
+                        });
+                        if (!response.ok) throw new Error('Failed to delete track');
+                        tracks = tracks.filter(t => t.id !== id);
+                        if (currentIdx >= tracks.length) {
+                            currentIdx = tracks.length - 1;
+                        }
+                        renderTracks();
+                        if (tracks.length > 0 && currentIdx >= 0) {
+                            loadTrack(currentIdx, false);
+                        } else {
+                            audioElem.src = '';
+                            footer.classList.remove('active');
+                            footerTitle.innerText = 'Не выбрано';
+                            footerArtist.innerText = '—';
+                            miniCover.innerText = '🎵';
+                        }
+                    } catch (error) {
+                        console.error('Error deleting track:', error);
+                        alert('Ошибка при удалении трека');
+                    }
                 }
-                renderTracks();
-                if (tracks.length > 0 && currentIdx >= 0) {
-                    loadTrack(currentIdx, false);
-                } else {
-                    audioElem.src = '';
-                    footer.classList.remove('active');
-                    footerTitle.innerText = 'Не выбрано';
-                    footerArtist.innerText = '—';
-                    miniCover.innerText = '🎵';
+
+                function formatTime(seconds) {
+                    if (isNaN(seconds) || seconds === Infinity || seconds === null) return "0:00";
+                    const mins = Math.floor(seconds / 60);
+                    const secs = Math.floor(seconds % 60);
+                    return `${mins}:${secs.toString().padStart(2, '0')}`;
                 }
-            } catch (error) {
-                console.error('Error deleting track:', error);
-                alert('Ошибка при удалении трека');
-            }
-        }
 
-        function formatTime(seconds) {
-            if (isNaN(seconds) || seconds === Infinity || seconds === null) return "0:00";
-            const mins = Math.floor(seconds / 60);
-            const secs = Math.floor(seconds % 60);
-            return `${mins}:${secs.toString().padStart(2, '0')}`;
-        }
+                function escapeHtml(str) {
+                    if (!str) return '';
+                    return str.replace(/[&<>]/g, function (m) {
+                        if (m === '&') return '&amp;';
+                        if (m === '<') return '&lt;';
+                        if (m === '>') return '&gt;';
+                        return m;
+                    });
+                }
 
-        function escapeHtml(str) {
-            if (!str) return '';
-            return str.replace(/[&<>]/g, function (m) {
-                if (m === '&') return '&amp;';
-                if (m === '<') return '&lt;';
-                if (m === '>') return '&gt;';
-                return m;
-            });
-        }
+                function updateFooterAndActiveTrack() {
+                    if (currentIdx >= 0 && currentIdx < tracks.length) {
+                        const track = tracks[currentIdx];
+                        footerTitle.innerText = track.title || 'Без названия';
+                        footerArtist.innerText = track.artist || 'Неизвестный исполнитель';
+                        miniCover.innerText = "🎵";
 
-        function updateFooterAndActiveTrack() {
-            if (currentIdx >= 0 && currentIdx < tracks.length) {
-                const track = tracks[currentIdx];
-                footerTitle.innerText = track.title || 'Без названия';
-                footerArtist.innerText = track.artist || 'Неизвестный исполнитель';
-                miniCover.innerText = "🎵";
+                        document.querySelectorAll('.track-row').forEach(row => {
+                            const rowId = parseInt(row.getAttribute('data-id'));
+                            if (rowId === track.id) {
+                                row.style.background = "#eef4ff";
+                                row.style.borderLeft = "4px solid #1f5090";
+                            } else {
+                                row.style.background = "white";
+                                row.style.borderLeft = "1px solid #eef2f9";
+                            }
+                        });
+                    }
+                }
 
-                document.querySelectorAll('.track-row').forEach(row => {
-                    const rowId = parseInt(row.getAttribute('data-id'));
-                    if (rowId === track.id) {
-                        row.style.background = "#eef4ff";
-                        row.style.borderLeft = "4px solid #1f5090";
+                function loadTrack(index, autoplay = false) {
+                    if (index < 0 || index >= tracks.length) return;
+                    currentIdx = index;
+                    const track = tracks[currentIdx];
+                    if (!track) return;
+
+                    if (track.audioUrl) {
+                        audioElem.src = track.audioUrl;
+                        audioElem.load();
                     } else {
-                        row.style.background = "white";
-                        row.style.borderLeft = "1px solid #eef2f9";
+                        audioElem.src = '';
+                        timeLabel.innerText = `0:00 / ${formatTime(track.durationSec)}`;
                     }
-                });
-            }
-        }
 
-        function loadTrack(index, autoplay = false) {
-            if (index < 0 || index >= tracks.length) return;
-            currentIdx = index;
-            const track = tracks[currentIdx];
-            if (!track) return;
+                    updateFooterAndActiveTrack();
 
-            if (track.audioUrl) {
-                audioElem.src = track.audioUrl;
-                audioElem.load();
-            } else {
-                audioElem.src = '';
-                timeLabel.innerText = `0:00 / ${formatTime(track.durationSec)}`;
-            }
+                    audioElem.addEventListener('loadedmetadata', () => {
+                        if (!isNaN(audioElem.duration) && audioElem.duration > 0) {
+                            timeLabel.innerText = `0:00 / ${formatTime(audioElem.duration)}`;
+                        } else {
+                            timeLabel.innerText = `0:00 / ${formatTime(track.durationSec)}`;
+                        }
+                    }, { once: true });
 
-            updateFooterAndActiveTrack();
+                    if (!audioElem.src) {
+                        timeLabel.innerText = `0:00 / ${formatTime(track.durationSec)}`;
+                    }
 
-            audioElem.addEventListener('loadedmetadata', () => {
-                if (!isNaN(audioElem.duration) && audioElem.duration > 0) {
-                    timeLabel.innerText = `0:00 / ${formatTime(audioElem.duration)}`;
-                } else {
-                    timeLabel.innerText = `0:00 / ${formatTime(track.durationSec)}`;
+                    if (autoplay && audioElem.src) {
+                        audioElem.play().then(() => {
+                            isPlaying = true;
+                            playPauseBtn.innerHTML = "⏸";
+                            footer.classList.add("active");
+                        }).catch(e => {
+                            console.warn("autoplay blocked", e);
+                            isPlaying = false;
+                            playPauseBtn.innerHTML = "▶";
+                            footer.classList.add("active");
+                        });
+                    } else {
+                        audioElem.pause();
+                        isPlaying = false;
+                        playPauseBtn.innerHTML = "▶";
+                        if (track.audioUrl) {
+                            footer.classList.add("active");
+                        }
+                    }
                 }
-            }, { once: true });
 
-            if (!audioElem.src) {
-                timeLabel.innerText = `0:00 / ${formatTime(track.durationSec)}`;
-            }
+                function startPlayback() {
+                    if (!tracks.length || currentIdx < 0) return;
+                    if (!audioElem.src || audioElem.ended || audioElem.readyState === 0) {
+                        loadTrack(currentIdx, true);
+                        return;
+                    }
+                    audioElem.play().then(() => {
+                        isPlaying = true;
+                        playPauseBtn.innerHTML = "⏸";
+                        footer.classList.add("active");
+                    }).catch(e => console.warn(e));
+                }
 
-            if (autoplay && audioElem.src) {
-                audioElem.play().then(() => {
-                    isPlaying = true;
-                    playPauseBtn.innerHTML = "⏸";
-                    footer.classList.add("active");
-                }).catch(e => {
-                    console.warn("autoplay blocked", e);
+                function pausePlayback() {
+                    audioElem.pause();
                     isPlaying = false;
                     playPauseBtn.innerHTML = "▶";
-                    footer.classList.add("active");
-                });
-            } else {
-                audioElem.pause();
-                isPlaying = false;
-                playPauseBtn.innerHTML = "▶";
-                if (track.audioUrl) {
-                    footer.classList.add("active");
                 }
-            }
-        }
 
-        function startPlayback() {
-            if (!tracks.length || currentIdx < 0) return;
-            if (!audioElem.src || audioElem.ended || audioElem.readyState === 0) {
-                loadTrack(currentIdx, true);
-                return;
-            }
-            audioElem.play().then(() => {
-                isPlaying = true;
-                playPauseBtn.innerHTML = "⏸";
-                footer.classList.add("active");
-            }).catch(e => console.warn(e));
-        }
-
-        function pausePlayback() {
-            audioElem.pause();
-            isPlaying = false;
-            playPauseBtn.innerHTML = "▶";
-        }
-
-        function togglePlayPause() {
-            if (!tracks.length || currentIdx < 0) return;
-            if (!audioElem.src || audioElem.ended) {
-                loadTrack(currentIdx, true);
-                footer.classList.add("active");
-                return;
-            }
-            if (isPlaying) {
-                pausePlayback();
-            } else {
-                startPlayback();
-            }
-            footer.classList.add("active");
-        }
-
-        function nextTrack() {
-            if (!tracks.length) return;
-            let newIdx = currentIdx + 1;
-            if (newIdx >= tracks.length) newIdx = 0;
-            currentIdx = newIdx;
-            loadTrack(currentIdx, isPlaying);
-            if (isPlaying) {
-                audioElem.play().catch(e => console.warn(e));
-                playPauseBtn.innerHTML = "⏸";
-            } else {
-                playPauseBtn.innerHTML = "▶";
-            }
-            footer.classList.add("active");
-        }
-
-        function prevTrack() {
-            if (!tracks.length) return;
-            let newIdx = currentIdx - 1;
-            if (newIdx < 0) newIdx = tracks.length - 1;
-            currentIdx = newIdx;
-            loadTrack(currentIdx, isPlaying);
-            if (isPlaying) {
-                audioElem.play().catch(e => console.warn(e));
-                playPauseBtn.innerHTML = "⏸";
-            } else {
-                playPauseBtn.innerHTML = "▶";
-            }
-            footer.classList.add("active");
-        }
-
-        function setVolume() {
-            audioElem.volume = volumeSlider.value;
-        }
-
-        function updateTimeDisplay() {
-            if (audioElem && !isNaN(audioElem.duration) && audioElem.duration !== Infinity && audioElem.duration > 0) {
-                const cur = formatTime(audioElem.currentTime);
-                const dur = formatTime(audioElem.duration);
-                timeLabel.innerText = `${cur} / ${dur}`;
-            } else if (currentIdx >= 0 && currentIdx < tracks.length) {
-                const track = tracks[currentIdx];
-                const currentTime = audioElem.currentTime || 0;
-                timeLabel.innerText = `${formatTime(currentTime)} / ${formatTime(track.durationSec)}`;
-            }
-        }
-
-        function onTrackEnded() {
-            nextTrack();
-        }
-
-        function renderTracks() {
-            trackContainer.innerHTML = "";
-            tracks.forEach(track => {
-                const row = document.createElement("div");
-                row.className = "track-row";
-                row.setAttribute("data-id", track.id);
-                row.innerHTML = `
-                    <div class="track-info-group" style="cursor: pointer;">
-                        <div class="track-icon-circle">🎵</div>
-                        <div class="track-name-artist">
-                            <div class="track-name">${escapeHtml(track.title) || 'Без названия'}</div>
-                            <div class="track-artist">${escapeHtml(track.artist) || 'Неизвестный'}</div>
-                        </div>
-                    </div>
-                    <div class="track-duration-badge">${formatTime(track.durationSec)}</div>
-                    <div class="track-actions">
-                        <button class="track-action-btn delete-btn" title="Удалить">🗑️</button>
-                    </div>
-                `;
-
-                row.querySelector('.track-info-group').addEventListener("click", () => {
-                    const idx = tracks.findIndex(t => t.id === track.id);
-                    if (idx !== -1) {
-                        currentIdx = idx;
+                function togglePlayPause() {
+                    if (!tracks.length || currentIdx < 0) return;
+                    if (!audioElem.src || audioElem.ended) {
                         loadTrack(currentIdx, true);
                         footer.classList.add("active");
+                        return;
                     }
+                    if (isPlaying) {
+                        pausePlayback();
+                    } else {
+                        startPlayback();
+                    }
+                    footer.classList.add("active");
+                }
+
+                function nextTrack() {
+                    if (!tracks.length) return;
+                    let newIdx = currentIdx + 1;
+                    if (newIdx >= tracks.length) newIdx = 0;
+                    currentIdx = newIdx;
+                    loadTrack(currentIdx, isPlaying);
+                    if (isPlaying) {
+                        audioElem.play().catch(e => console.warn(e));
+                        playPauseBtn.innerHTML = "⏸";
+                    } else {
+                        playPauseBtn.innerHTML = "▶";
+                    }
+                    footer.classList.add("active");
+                }
+
+                function prevTrack() {
+                    if (!tracks.length) return;
+                    let newIdx = currentIdx - 1;
+                    if (newIdx < 0) newIdx = tracks.length - 1;
+                    currentIdx = newIdx;
+                    loadTrack(currentIdx, isPlaying);
+                    if (isPlaying) {
+                        audioElem.play().catch(e => console.warn(e));
+                        playPauseBtn.innerHTML = "⏸";
+                    } else {
+                        playPauseBtn.innerHTML = "▶";
+                    }
+                    footer.classList.add("active");
+                }
+
+                function setVolume() {
+                    audioElem.volume = volumeSlider.value;
+                }
+
+                function updateTimeDisplay() {
+                    if (audioElem && !isNaN(audioElem.duration) && audioElem.duration !== Infinity && audioElem.duration > 0) {
+                        const cur = formatTime(audioElem.currentTime);
+                        const dur = formatTime(audioElem.duration);
+                        timeLabel.innerText = `${cur} / ${dur}`;
+                    } else if (currentIdx >= 0 && currentIdx < tracks.length) {
+                        const track = tracks[currentIdx];
+                        const currentTime = audioElem.currentTime || 0;
+                        timeLabel.innerText = `${formatTime(currentTime)} / ${formatTime(track.durationSec)}`;
+                    }
+                }
+
+                function onTrackEnded() {
+                    nextTrack();
+                }
+
+                function renderTracks() {
+                    trackContainer.innerHTML = "";
+                    tracks.forEach(track => {
+                        const row = document.createElement("div");
+                        row.className = "track-row";
+                        row.setAttribute("data-id", track.id);
+                        row.innerHTML = `
+                            <div class="track-info-group" style="cursor: pointer;">
+                                <div class="track-icon-circle">🎵</div>
+                                <div class="track-name-artist">
+                                  <div class="track-name">${escapeHtml(track.title) || 'Без названия'}</div>
+                                    <div class="track-artist">${escapeHtml(track.artist) || 'Неизвестный'}</div>
+                                </div>
+                            </div>
+                            <div class="track-duration-badge">${formatTime(track.durationSec)}</div>
+                            <div class="track-actions">
+                                <button class="track-action-btn delete-btn" title="Удалить">🗑️</button>
+                            </div>
+                        `;
+
+                        row.querySelector('.track-info-group').addEventListener("click", () => {
+                            const idx = tracks.findIndex(t => t.id === track.id);
+                            if (idx !== -1) {
+                                currentIdx = idx;
+                                loadTrack(currentIdx, true);
+                                footer.classList.add("active");
+                            }
+                        });
+
+                        row.querySelector('.delete-btn').addEventListener("click", (e) => {
+                            e.stopPropagation();
+                            deleteTrack(track.id);
+                        });
+
+                        trackContainer.appendChild(row);
+                    });
+
+                    if (currentIdx >= 0 && currentIdx < tracks.length) {
+                        updateFooterAndActiveTrack();
+                    }
+                }
+
+                if (addTrackBtn) {
+                    addTrackBtn.addEventListener('click', () => {
+                        console.log('Add track button clicked');
+                        const input = document.createElement('input');
+                        input.type = 'file';
+                        input.accept = 'audio/*';
+                        input.onchange = async (e) => {
+                            const file = e.target.files[0];
+                            if (!file) return;
+
+                            const { artist, title } = parseFilename(file.name);
+                            const duration = await getAudioDuration(file);
+
+                            const newTrack = {
+                                title: title || file.name,
+                                artist: artist || 'Неизвестный исполнитель',
+                                durationSec: Math.round(duration) || 0,
+                                audioUrl: '',
+                            };
+
+                            await addTrack(newTrack, file);
+                        };
+                        input.click();
+                    });
+                }
+
+                playPauseBtn.addEventListener("click", togglePlayPause);
+                prevBtn.addEventListener("click", prevTrack);
+                nextBtn.addEventListener("click", nextTrack);
+                volumeSlider.addEventListener("input", setVolume);
+                audioElem.addEventListener("timeupdate", updateTimeDisplay);
+                audioElem.addEventListener("ended", onTrackEnded);
+                audioElem.volume = volumeSlider.value;
+
+
+
+async function loadSharedPlaylists() {
+            const container = document.getElementById('sharedPlaylists');
+
+            try {
+                const response = await fetch('/api/playlists');
+
+                if (!response.ok) {
+                    throw new Error('Ошибка загрузки: ' + response.status);
+                }
+
+                const playlists = await response.json();
+
+                container.replaceChildren();
+
+
+                playlists.forEach(playlist => {
+                    const item = document.createElement('li');
+
+                    item.style.display = 'flex';
+                    item.style.alignItems = 'center';
+                    item.style.justifyContent = 'space-between';
+                    item.style.cursor = 'pointer';
+                    item.style.gap = '10px';
+
+                    // Показываем обычное название без HTML-кода
+                    const name = document.createElement('span');
+                    name.textContent =
+                        playlist.name.split('<')[0].trim()
+                        || 'Тестовый плейлист';
+
+                    name.style.flex = '1';
+                    item.appendChild(name);
+
+                    // Кнопка удаления
+                    const deleteBtn = document.createElement('button');
+                    deleteBtn.textContent = '🗑️';
+                    deleteBtn.title = 'Удалить плейлист';
+                    deleteBtn.type = 'button';
+
+                    deleteBtn.addEventListener('click', async (event) => {
+                        event.stopPropagation();
+
+                        if (!confirm('Удалить этот плейлист?')) return;
+
+                        try {
+                            const response = await fetch(
+                                `/api/playlists/${playlist.id}`,
+                                { method: 'DELETE' }
+                            );
+
+                            if (!response.ok) {
+                                throw new Error('HTTP ' + response.status);
+                            }
+
+                            await loadSharedPlaylists();
+                        } catch (error) {
+                            console.error(error);
+                            alert('Не удалось удалить плейлист');
+                        }
+                    });
+
+                    item.appendChild(deleteBtn);
+
+                    // Открытие плейлиста
+                    item.addEventListener('click', () => {
+                        document.getElementById('playlistPreview')?.remove();
+
+                        const panel = document.createElement('div');
+                        panel.id = 'playlistPreview';
+
+                        panel.style.cssText = `
+                    position:fixed;
+                    inset:10%;
+                    background:#11254b;
+                    color:white;
+                    padding:40px;
+                    border-radius:20px;
+                    z-index:10000;
+                `;
+
+                        panel.innerHTML = `
+            <button type="button" id="closePlaylistPreview">
+                Закрыть
+            </button>
+            <h2>Музыкальный плейлист</h2>
+            <div>${playlist.name}</div>
+            <p>Список композиций пока пуст.</p>
+`;
+
+                        document.body.appendChild(panel);
+
+
+                        panel.querySelector('#closePlaylistPreview')
+                            ?.addEventListener('click', () => panel.remove());
+                    });
+
+                    container.appendChild(item);
                 });
 
-                row.querySelector('.delete-btn').addEventListener("click", (e) => {
-                    e.stopPropagation();
-                    deleteTrack(track.id);
-                });
 
-                trackContainer.appendChild(row);
-            });
-
-            if (currentIdx >= 0 && currentIdx < tracks.length) {
-                updateFooterAndActiveTrack();
+            } catch (error) {
+                console.error(error);
+                alert('Не удалось загрузить плейлисты');
             }
-        }
+}
 
-        if (addTrackBtn) {
-            addTrackBtn.addEventListener('click', () => {
-                console.log('Add track button clicked');
-                const input = document.createElement('input');
-                input.type = 'file';
-                input.accept = 'audio/*';
-                input.onchange = async (e) => {
-                    const file = e.target.files[0];
-                    if (!file) return;
+document.getElementById('createPlaylistBtn')
+            .addEventListener('click', async () => {
 
-                    const { artist, title } = parseFilename(file.name);
-                    const duration = await getAudioDuration(file);
+                const name = prompt('Введите название плейлиста:');
 
-                    const newTrack = {
-                        title: title || file.name,
-                        artist: artist || 'Неизвестный исполнитель',
-                        durationSec: Math.round(duration) || 0,
-                        audioUrl: '',
-                    };
+                if (name === null || !name.trim()) return;
 
-                    await addTrack(newTrack, file);
-                };
-                input.click();
+                try {
+                    const response = await fetch('/api/playlists', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            name: name.trim(),
+                            tracks: []
+                        })
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Ошибка создания: ' + response.status);
+                    }
+
+                    await loadSharedPlaylists();
+
+                } catch (error) {
+                    console.error(error);
+                    alert('Не удалось создать плейлист');
+                }
             });
-        }
 
-        playPauseBtn.addEventListener("click", togglePlayPause);
-        prevBtn.addEventListener("click", prevTrack);
-        nextBtn.addEventListener("click", nextTrack);
-        volumeSlider.addEventListener("input", setVolume);
-        audioElem.addEventListener("timeupdate", updateTimeDisplay);
-        audioElem.addEventListener("ended", onTrackEnded);
-        audioElem.volume = volumeSlider.value;
+loadSharedPlaylists();
 
-        fetchTracks();
+
+                fetchTracks();
     </script>
 </body>
 </html>
