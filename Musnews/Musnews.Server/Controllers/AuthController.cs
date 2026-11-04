@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Musnews.Models.DTO;
 using Musnews.Server.Services;
 
@@ -16,7 +17,8 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("register")]
-    public async Task<IActionResult> Register([FromBody] RegisterDto registerDto)
+    public async Task<IActionResult> Register(
+        [FromBody] RegisterDto registerDto)
     {
         try
         {
@@ -29,8 +31,11 @@ public class AuthController : ControllerBase
         }
     }
 
+    // Применяем ограничение частоты попыток входа
     [HttpPost("login")]
-    public async Task<IActionResult> Login([FromBody] LoginDto loginDto)
+    [EnableRateLimiting("login")]
+    public async Task<IActionResult> Login(
+        [FromBody] LoginDto loginDto)
     {
         try
         {

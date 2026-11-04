@@ -1,8 +1,10 @@
 using Microsoft.EntityFrameworkCore;
-using SQLitePCL;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
+using System.Threading.RateLimiting;
+using SQLitePCL;
 using Musnews.Data;
 using Musnews.Server.Services;
 
@@ -10,7 +12,7 @@ Batteries.Init();
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Добавляем CORS для разработки
+// CORS для разработки
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>
@@ -21,26 +23,57 @@ builder.Services.AddCors(options =>
     });
 });
 
-var jwtSecret = builder.Configuration["Jwt:Secret"] ?? "YourSuperSecretKeyThatIsAtLeast32CharactersLong!";
+// Настройка JWT
+var jwtSecret = builder.Configuration["Jwt:Secret"]
+    ?? "YourSuperSecretKeyThatIsAtLeast32CharactersLong!";
+
 var key = Encoding.ASCII.GetBytes(jwtSecret);
 
 builder.Services.AddAuthentication(options =>
 {
-    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultAuthenticateScheme =
+        JwtBearerDefaults.AuthenticationScheme;
+
+    options.DefaultChallengeScheme =
+        JwtBearerDefaults.AuthenticationScheme;
 })
 .AddJwtBearer(options =>
 {
-    options.RequireHttpsMetadata = false; // Важно для разработки!
+    options.RequireHttpsMetadata = false;
     options.SaveToken = true;
-    options.TokenValidationParameters = new TokenValidationParameters
-    {
-        ValidateIssuerSigningKey = true,
-        IssuerSigningKey = new SymmetricSecurityKey(key),
-        ValidateIssuer = false,
-        ValidateAudience = false,
-        ClockSkew = TimeSpan.Zero
-    };
+
+    options.TokenValidationParameters =
+        new TokenValidationParameters
+        {
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new SymmetricSecurityKey(key),
+            ValidateIssuer = false,
+            ValidateAudience = false,
+            ClockSkew = TimeSpan.Zero
+        };
+});
+
+// Защита от частых попыток входа
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode =
+        StatusCodes.Status429TooManyRequests;
+
+    options.AddPolicy("login", context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey:
+                context.Connection.RemoteIpAddress?.ToString()
+                ?? "unknown",
+
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 5,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+                AutoReplenishment = true
+            }
+        )
+    );
 });
 
 builder.Services.AddAuthorization();
@@ -48,14 +81,14 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// Используем SQLite с правильным подключением
+// SQLite
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlite("Data Source=music.db"));
 
 builder.Services.AddScoped<ITrackRepository, TrackRepository>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 
-// Добавляем поддержку статических файлов
+// Статические файлы
 builder.Services.AddSpaStaticFiles(configuration =>
 {
     configuration.RootPath = "wwwroot";
@@ -63,10 +96,12 @@ builder.Services.AddSpaStaticFiles(configuration =>
 
 var app = builder.Build();
 
-// Автоматическая миграция при запуске
+// Автоматическая миграция базы данных
 using (var scope = app.Services.CreateScope())
 {
-    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    var db = scope.ServiceProvider
+        .GetRequiredService<AppDbContext>();
+
     try
     {
         db.Database.Migrate();
@@ -77,7 +112,7 @@ using (var scope = app.Services.CreateScope())
     }
 }
 
-// В разработке используем HTTP (не HTTPS для простоты)
+// Настройка окружения
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -89,13 +124,16 @@ else
 }
 
 app.UseCors("AllowAll");
-app.UseStaticFiles(); // Для доступа к загруженным файлам
+app.UseStaticFiles();
+
 app.UseRouting();
+
+// Подключаем защиту Rate Limiting
+app.UseRateLimiter();
 
 app.UseAuthentication();
 app.UseAuthorization();
 
-// Настройка SPA - все запросы не к API идут на index.html
 app.MapControllers();
 app.MapFallbackToFile("index.html");
 
