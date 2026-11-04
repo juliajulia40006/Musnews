@@ -9,7 +9,7 @@ from urllib.parse import urlparse
 
 from xss_browser_test import check_xss
 from sql_test import check_sql_source, check_playlist_id, check_login_input
-
+from rate_limit_test import check_rate_limiting
 
 # Адрес запущенного Musnews
 BASE_URL = "http://localhost:5000"
@@ -262,7 +262,7 @@ def check_xss_browser():
 def save_report():
     report = {
         "project": "Musnews",
-        "scanner_version": "1.1",
+        "scanner_version": "1.2",
         "created_at": (
             datetime.now()
             .astimezone()
@@ -334,7 +334,7 @@ def main():
         return
 
     print("=" * 45)
-    print("MUSNEWS SECURITY SCANNER 1.1")
+    print("MUSNEWS SECURITY SCANNER 1.2")
     print("=" * 45)
     print(f"Адрес сервера: {BASE_URL}")
 
@@ -375,6 +375,18 @@ def main():
             "ERROR",
             "SQL-проверки API пропущены: сервер недоступен."
         )
+
+
+    if server_available:
+        rate_result = check_rate_limiting(BASE_URL)
+        results.append(rate_result)
+    else:
+        add_result(
+            "Rate Limiting: защита от перебора паролей",
+            "ERROR",
+            "Проверка пропущена: сервер недоступен."
+        )
+
 
     try:
         save_report()
